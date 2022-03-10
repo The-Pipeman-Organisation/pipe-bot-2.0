@@ -18,10 +18,12 @@ public class EmbedUpdater {
                     if (!pi.player.isPaused()
                             && pi.player.getPlayingTrack() != null
                             && time - pi.lastUpdateTimestamp > 5000) {
-                        pi.updateEmbed();
+                        if (pi.playerGUIMessage != null) {
+                            pi.updateEmbed();
+                        }
                     }
                 }
             }
         }, 0L, 5000L);
     }
-}
+} // TODO resend embed every minute or so

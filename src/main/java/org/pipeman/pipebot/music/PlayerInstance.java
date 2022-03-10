@@ -13,21 +13,21 @@ import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.interactions.components.ActionRow;
 import net.dv8tion.jda.api.interactions.components.Button;
 import org.pipeman.pipebot.Main;
-import org.pipeman.pipebot.util.lyrics.LyricsManager;
 import org.pipeman.pipebot.util.music.PlayerInterfaceUtil;
 import org.pipeman.pipebot.util.music.InterfaceMode;
 import org.pipeman.pipebot.util.music.LoopMode;
+import org.pipeman.pipebot.webinterface.WeebSocketServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
+import java.util.UUID;
 
 public class PlayerInstance extends AudioEventAdapter {
     public final AudioPlayer player;
-    private final ArrayList<AudioTrack> queue;
+    public final ArrayList<AudioTrack> queue;
     public Message playerGUIMessage;
     private final Logger logger = LoggerFactory.getLogger(PlayerInstance.class);
     private Runnable onInterfaceSent;
@@ -35,23 +35,18 @@ public class PlayerInstance extends AudioEventAdapter {
     public final long lastUpdateTimestamp = System.currentTimeMillis();
     LoopMode loopMode = LoopMode.OFF;
     InterfaceMode interfaceMode = InterfaceMode.NOTHING;
-    final LyricsManager m;
-    public final int sessionId;
+    public String sessionID;
+    WeebSocketServer wss = Main.weebSocketServer;
+    public Guild guild;
 
-    public PlayerInstance(AudioPlayerManager manager) {
+    public PlayerInstance(AudioPlayerManager manager, Guild guild) {
         this.queue = new ArrayList<>();
         player = manager.createPlayer();
         player.addListener(this);
         manager.getConfiguration().setFilterHotSwapEnabled(true);
-        m = new LyricsManager();
-        m.playerInstance = this;
-        try {
-            m.loadLyrics("aa");
-            System.out.println(m.lines);
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-        }
-        sessionId = new Random().nextInt(Integer.MAX_VALUE);
+        sessionID = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16);
+        System.out.println(sessionID);
+        this.guild = guild;
     }
 
     private MessageEmbed createInterfaceEmbed(AudioTrack track) {
@@ -62,7 +57,6 @@ public class PlayerInstance extends AudioEventAdapter {
 
         switch (interfaceMode) {
             case NOTHING -> {
-
             }
 
             case QUEUE -> {
@@ -126,9 +120,11 @@ public class PlayerInstance extends AudioEventAdapter {
         return new AudioPlayerSendHandler(player);
     }
 
-    public void queue(AudioTrack track) {
+    public void queue(AudioTrack track) { // update queue & PI
         queue.add(track);
         player.startTrack(track, true);
+        wss.updateQueue(this);
+        wss.updatePI(this);
     }
 
     @Override
@@ -151,7 +147,9 @@ public class PlayerInstance extends AudioEventAdapter {
         }
         if (endReason != AudioTrackEndReason.STOPPED) {
             updateEmbed();
-        }
+        } // update queue & PI
+        wss.updateQueue(this);
+        wss.updatePI(this);
     }
 
     public void setRunnableToExecuteWhenEmbedWasSent(Runnable r) {
@@ -167,58 +165,82 @@ public class PlayerInstance extends AudioEventAdapter {
             }});
     }
 
-    public void togglePaused() {
+    public void togglePaused() { // update PI
         player.setPaused(!player.isPaused());
+        updateEmbed();
+        wss.updatePI(this);
+    }
+
+    public void setPaused(boolean paused) { // update PI
+        player.setPaused(paused);
+        updateEmbed();
+        wss.updatePI(this);
+    }
+
+    public void jumpToTrack(int index) { // update PI & queue
+        if (index < 0 || index >= queue.size()) {
+            return;
+        }
+        positionInQueue = index;
+        player.playTrack(queue.get(index).makeClone());
+        wss.updatePI(this);
+        wss.updateQueue(this);
         updateEmbed();
     }
 
-    public void skip() {
+    public void skip() { // update PI
         if (positionInQueue < queue.size() - 1) {
             positionInQueue++;
             player.playTrack(queue.get(positionInQueue).makeClone());
+            wss.updatePI(this);
         }
     }
 
-    public void back() {
+    public void back() { // update PI
         if (positionInQueue > 0) {
             positionInQueue--;
             player.playTrack(queue.get(positionInQueue).makeClone());
+            wss.updatePI(this);
         }
     }
 
-    public void ffOrFb(long time) {
+    public void ffOrFb(long time) { // update PI
         if (player.getPlayingTrack() == null) return;
         player.getPlayingTrack().setPosition(player.getPlayingTrack().getPosition() + time);
         logger.info("Seeking " + time);
         updateEmbed();
+        wss.updatePI(this);
     }
 
-    public void disconnect(Guild g) {
-        player.destroy();
-        g.getAudioManager().closeAudioConnection();
-        Main.playerInstances.remove(g.getIdLong());
-        playerGUIMessage.delete().queue(response -> logger.info("GUI message has been deleted."));
-    }
-
-    public void disconnect() {
-        playerGUIMessage.delete().queue(response -> logger.info("GUI message has been deleted."));
-    }
-
-    public void lqhButtonClicked() {
+    public void lqhButtonClicked() { // update PI
         switch (interfaceMode) {
             case NOTHING -> interfaceMode = InterfaceMode.QUEUE;
             case QUEUE -> interfaceMode = InterfaceMode.HISTORY;
             case HISTORY -> interfaceMode = InterfaceMode.NOTHING;
         }
+        wss.updatePI(this);
         updateEmbed();
     }
 
-    public void loopButtonClicked() {
+    public void loopButtonClicked() { // update PI
         switch (loopMode) {
             case OFF -> loopMode = LoopMode.SONG;
             case SONG -> loopMode = LoopMode.QUEUE;
             case QUEUE -> loopMode = LoopMode.OFF;
         }
+        wss.updatePI(this);
         updateEmbed();
+    }
+
+    public int getPositionInQueue() {
+        return positionInQueue;
+    }
+
+    public void disconnect() { // close session
+        player.destroy();
+        guild.getAudioManager().closeAudioConnection();
+        Main.playerInstances.remove(guild.getIdLong());
+        playerGUIMessage.delete().queue(response -> logger.info("GUI message has been deleted."));
+        wss.closeSession(this);
     }
 }

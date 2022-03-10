@@ -41,7 +41,7 @@ public class InterfaceButtonHandler extends ListenerAdapter {
             } else if (event.getComponentId().equals("loop")) {
                 pi.loopButtonClicked();
             } else if (event.getComponentId().equals("leave")) {
-                pi.disconnect(event.getGuild());
+                pi.disconnect();
             }
         }
 

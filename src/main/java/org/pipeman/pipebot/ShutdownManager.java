@@ -1,6 +1,6 @@
 package org.pipeman.pipebot;
 
-import org.pipeman.pipebot.music.AudioUtil;
+import org.pipeman.pipebot.util.music.AudioUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +15,9 @@ public class ShutdownManager {
     public static void shutdown() {
         logger.info("Shutting down...");
         AudioUtil.shutdown();
+        try {
+            Main.weebSocketServer.close();
+        } catch (Exception ignored) {}
         try {
             Thread.sleep(2000L);
         } catch (Exception ignored) {}

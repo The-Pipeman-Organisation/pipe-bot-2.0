@@ -2,7 +2,7 @@ package org.pipeman.pipebot.commands;
 
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import org.pipeman.pipebot.music.AudioUtil;
+import org.pipeman.pipebot.util.music.AudioUtil;
 
 import java.util.Objects;
 
@@ -17,7 +17,7 @@ public class CommandPlay extends ListenerAdapter {
             return;
         }
 
-        String song = Objects.requireNonNull(event.getOption("song")).getAsString();
+        String song = Objects.requireNonNull(event.getOption("query")).getAsString();
         //noinspection HttpUrlsUsage
         if (!song.startsWith("https://") && !song.startsWith("http://")) {
             AudioUtil.loadAndPlay(event.getMember(), event, "ytsearch:\"" + song + "\"");

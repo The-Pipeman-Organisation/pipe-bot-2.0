@@ -1,4 +1,4 @@
-package org.pipeman.pipebot.music;
+package org.pipeman.pipebot.util.music;
 
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
+import org.pipeman.pipebot.music.PlayerInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +25,7 @@ public class AudioUtil {
         PlayerInstance playerInstance = playerInstances.get(guildId);
 
         if (playerInstance == null) {
-            playerInstance = new PlayerInstance(playerManager);
+            playerInstance = new PlayerInstance(playerManager, guild);
             playerInstances.put(guildId, playerInstance);
         }
         guild.getAudioManager().setSendingHandler(playerInstance.getSendHandler());
@@ -52,12 +53,14 @@ public class AudioUtil {
 
             @Override
             public void playlistLoaded(AudioPlaylist playlist) {
-                for (AudioTrack t : playlist.getTracks()) {
-                    player.queue(t);
+                if (!playlist.isSearchResult()) {
+                    for (AudioTrack t : playlist.getTracks()) {
+                        player.queue(t);
+                    }
                 }
                 AudioTrack firstTrack = playlist.getSelectedTrack() ==
                         null ? playlist.getTracks().get(0) : playlist.getSelectedTrack();
-                play(member, player, playlist.getSelectedTrack());
+                play(member, player, firstTrack);
 
                 updateAndSendMsg(firstTrack, player, event);
             }
